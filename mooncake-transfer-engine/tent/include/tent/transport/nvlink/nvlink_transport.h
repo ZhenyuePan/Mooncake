@@ -48,6 +48,9 @@ struct NVLinkSubBatch : public Transport::SubBatch {
     size_t max_size;
     CUDAStreamHandle sync_stream;
     CUDAStreamHandle async_stream;
+    // Events recorded at the end of each submitTransferTasks() call. Owned by
+    // the batch and destroyed in freeSubBatch().
+    std::vector<cudaEvent_t> events;
     virtual size_t size() const { return task_list.size(); }
 };
 
@@ -83,6 +86,12 @@ class NVLinkTransport : public Transport {
 
    private:
     void startTransfer(std::vector<NVLinkTask *> &tasks, NVLinkSubBatch *batch);
+
+    // CUDA host function invoked by the runtime when async_stream reaches the
+    // launch point queued at the tail of submitTransferTasks(). It dispatches
+    // notifyMaybeReady() to the BatchEventSink (if still alive) without
+    // touching any CUDA API, per cudaLaunchHostFunc constraints.
+    static void CUDART_CB onStreamCompleteHostFn(void *user_data);
 
     void *createSharedMemory(const std::string &path, size_t size);
 

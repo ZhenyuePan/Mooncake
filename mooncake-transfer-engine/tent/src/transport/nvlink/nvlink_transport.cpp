@@ -115,7 +115,14 @@ Status NVLinkTransport::freeSubBatch(SubBatchRef& batch) {
     auto shm_batch = dynamic_cast<NVLinkSubBatch*>(batch);
     if (!shm_batch)
         return Status::InvalidArgument("Invalid NVLink sub-batch" LOC_MARK);
-    // CHECK_CUDA(cudaStreamDestroy(shm_batch->stream));
+    // Sinks are closed by the engine before freeSubBatch(); any host func
+    // still in flight will lock() the weak_ptr and find an empty target,
+    // turning the callback into a noop. By the time we reach here the engine
+    // has also drained outstanding work, so destroying the events is safe.
+    for (auto ev : shm_batch->events) {
+        if (ev) cudaEventDestroy(ev);
+    }
+    shm_batch->events.clear();
     Slab<NVLinkSubBatch>::Get().deallocate(shm_batch);
     batch = nullptr;
     return Status::OK();
@@ -224,6 +231,39 @@ void NVLinkTransport::startTransfer(std::vector<NVLinkTask*>& tasks,
     cudaEventCreateWithFlags(&event, cudaEventDisableTiming);
     cudaEventRecord(event, batch->async_stream.get());
     for (auto* task : tasks) task->completion_event = event;
+    batch->events.push_back(event);
+
+    // Queue a host function on the same stream so the runtime calls back into
+    // userland once the recorded event has fired. The callback drives
+    // BatchEventSink::notifyMaybeReady() so progress no longer requires the
+    // application to poll getTransferStatus(). When no sink is attached we
+    // skip the callback entirely to keep the polling-only path zero-cost.
+    if (batch->sink) {
+        // The host func only needs a weak reference to the sink: it must not
+        // extend the batch's lifetime, and it must remain a noop when the
+        // engine has already closed the sink before freeSubBatch().
+        auto* ctx = new std::weak_ptr<BatchEventSink>(batch->sink);
+        auto err =
+            cudaLaunchHostFunc(batch->async_stream.get(),
+                               &NVLinkTransport::onStreamCompleteHostFn, ctx);
+        if (err != cudaSuccess) {
+            // Fall back to polling for this submit: the status_word will still
+            // be flipped by getTransferStatus() via cudaEventQuery().
+            delete ctx;
+            LOG(WARNING) << "cudaLaunchHostFunc failed, falling back to "
+                            "polling for this submit: "
+                         << cudaGetErrorString(err);
+        }
+    }
+}
+
+void CUDART_CB NVLinkTransport::onStreamCompleteHostFn(void* user_data) {
+    // Per cudaLaunchHostFunc contract: must not call any CUDA API here.
+    std::unique_ptr<std::weak_ptr<BatchEventSink>> wp(
+        static_cast<std::weak_ptr<BatchEventSink>*>(user_data));
+    if (auto s = wp->lock()) {
+        s->notifyMaybeReady();
+    }
 }
 
 Status NVLinkTransport::getTransferStatus(SubBatchRef batch, int task_id,

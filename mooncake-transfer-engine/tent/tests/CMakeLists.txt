@@ -138,3 +138,13 @@ target_include_directories(tent_progress_worker_test
                            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 add_test(NAME tent_progress_worker_test
          COMMAND tent_progress_worker_test)
+
+if(TARGET tent_xport_nvlink)
+  add_executable(tent_nvlink_transport_test nvlink_transport_test.cpp)
+  target_link_libraries(tent_nvlink_transport_test
+                        PRIVATE gtest gtest_main tent_link_group
+                                CUDA::cuda_driver CUDA::cudart)
+  target_include_directories(tent_nvlink_transport_test
+                             PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+  add_test(NAME tent_nvlink_transport_test COMMAND tent_nvlink_transport_test)
+endif()
