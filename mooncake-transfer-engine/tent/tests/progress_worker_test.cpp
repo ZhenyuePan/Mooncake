@@ -651,8 +651,7 @@ TEST(BatchLifecycle, FailoverDisabledBatchDoesNotResubmit) {
     std::vector<uint8_t> buf(kBufLen, 0xDA);
     ASSERT_TRUE(engine.registerLocalMemory(buf.data(), kBufLen).ok());
 
-    BatchID batch_id =
-        engine.allocateBatch(1, /*enable_failover=*/false);
+    BatchID batch_id = engine.allocateBatch(1, /*enable_failover=*/false);
     ASSERT_NE(batch_id, (BatchID)0);
 
     Request req;
@@ -675,7 +674,8 @@ TEST(BatchLifecycle, FailoverDisabledBatchDoesNotResubmit) {
     EXPECT_EQ(status.s, TransferStatusEnum::FAILED);
     EXPECT_EQ(fake_rdma->submit_calls.load(), 1);
     EXPECT_EQ(fake_tcp->submit_calls.load(), 0)
-        << "failover-disabled batch must not resubmit to the fallback transport";
+        << "failover-disabled batch must not resubmit to the fallback "
+           "transport";
 
     EXPECT_TRUE(engine.freeBatch(batch_id).ok());
     EXPECT_TRUE(engine.unregisterLocalMemory(buf.data(), kBufLen).ok());
@@ -1123,7 +1123,8 @@ TEST(BatchLifecycle, FreeSweepsTerminalPendingFreeBatchWithoutWorker) {
     ASSERT_TRUE(engine.freeBatch(batch_b).ok());
 
     EXPECT_EQ(fake_rdma->free_calls.load(), 2)
-        << "freeBatch must sweep the earlier pending-free batch once it is terminal";
+        << "freeBatch must sweep the earlier pending-free batch once it is "
+           "terminal";
 
     EXPECT_TRUE(engine.unregisterLocalMemory(buf.data(), kBufLen).ok());
 }

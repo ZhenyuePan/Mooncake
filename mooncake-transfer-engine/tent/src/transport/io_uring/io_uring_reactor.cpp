@@ -39,21 +39,22 @@ IOUringReactor::~IOUringReactor() { stop(); }
 
 Status IOUringReactor::start(size_t worker_threads) {
     if (running_.load(std::memory_order_acquire)) {
-        return Status::InvalidArgument("IOUringReactor already started" LOC_MARK);
+        return Status::InvalidArgument(
+            "IOUringReactor already started" LOC_MARK);
     }
     if (worker_threads == 0) worker_threads = 1;
 
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     if (epoll_fd_ < 0) {
-        return Status::InternalError(
-            std::string("epoll_create1 failed: ") + strerror(errno) + LOC_MARK);
+        return Status::InternalError(std::string("epoll_create1 failed: ") +
+                                     strerror(errno) + LOC_MARK);
     }
     control_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (control_fd_ < 0) {
         ::close(epoll_fd_);
         epoll_fd_ = -1;
-        return Status::InternalError(
-            std::string("control eventfd failed: ") + strerror(errno) + LOC_MARK);
+        return Status::InternalError(std::string("control eventfd failed: ") +
+                                     strerror(errno) + LOC_MARK);
     }
     epoll_event ev{};
     ev.events = EPOLLIN;
@@ -118,8 +119,8 @@ Status IOUringReactor::registerBatch(IOUringSubBatch* batch) {
     if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, batch->eventfd_, &ev) < 0) {
         std::lock_guard<std::mutex> lk(registry_mutex_);
         registry_.erase(batch->eventfd_);
-        return Status::InternalError(
-            std::string("epoll_ctl(ADD) failed: ") + strerror(errno) + LOC_MARK);
+        return Status::InternalError(std::string("epoll_ctl(ADD) failed: ") +
+                                     strerror(errno) + LOC_MARK);
     }
     batch->registered.store(true, std::memory_order_release);
     return Status::OK();

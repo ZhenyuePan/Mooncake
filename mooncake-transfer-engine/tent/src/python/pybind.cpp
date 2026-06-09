@@ -625,12 +625,10 @@ PYBIND11_MODULE(tent, m) {
         // RAII Batch Allocation
         .def(
             "allocate_batch_guard",
-            [](TransferEngine& self,
-               size_t batch_size,
+            [](TransferEngine& self, size_t batch_size,
                bool enable_failover) -> std::unique_ptr<BatchGuard> {
                 py::gil_scoped_release release;
-                auto batch_id = self.allocateBatch(batch_size,
-                                                   enable_failover);
+                auto batch_id = self.allocateBatch(batch_size, enable_failover);
                 if (batch_id == 0) {
                     throw InternalError(
                         "allocate_batch_guard: failed to allocate batch");

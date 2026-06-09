@@ -56,7 +56,8 @@ struct TaskInfo {
     Request request;
     bool staging{false};
     TransferStatusEnum status{TransferStatusEnum::PENDING};
-    bool failover_pending{false};  // FAILED but a failover/resubmit was not yet attempted
+    bool failover_pending{
+        false};  // FAILED but a failover/resubmit was not yet attempted
     volatile TransferStatusEnum staging_status{TransferStatusEnum::PENDING};
     std::chrono::steady_clock::time_point start_time{};  // For latency tracking
 };
@@ -204,8 +205,7 @@ class TransferEngineImpl {
     Status pollTaskStatus(Batch* batch, size_t task_id,
                           TransferStatus& task_status);
 
-    void resolveFailedTask(Batch* batch, size_t task_id,
-                           bool allow_failover);
+    void resolveFailedTask(Batch* batch, size_t task_id, bool allow_failover);
 
     void updateTaskStatusAfterPoll(Batch* batch, size_t task_id,
                                    TransferStatus& task_status,

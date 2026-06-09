@@ -121,8 +121,7 @@ Status TransferEngine::unregisterLocalMemory(std::vector<void*> addr_list,
     return impl_->unregisterLocalMemory(addr_list, size_list);
 }
 
-BatchID TransferEngine::allocateBatch(size_t batch_size,
-                                      bool enable_failover) {
+BatchID TransferEngine::allocateBatch(size_t batch_size, bool enable_failover) {
     return impl_->allocateBatch(batch_size, enable_failover);
 }
 

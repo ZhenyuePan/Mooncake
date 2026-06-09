@@ -181,8 +181,8 @@ Status IOUringTransport::allocateSubBatch(SubBatchRef& batch, size_t max_size) {
         io_uring_queue_exit(&io_uring_batch->ring);
         Slab<IOUringSubBatch>::Get().deallocate(io_uring_batch);
         batch = nullptr;
-        return Status::InternalError(
-            std::string("eventfd failed: ") + strerror(errno) + LOC_MARK);
+        return Status::InternalError(std::string("eventfd failed: ") +
+                                     strerror(errno) + LOC_MARK);
     }
     rc = io_uring_register_eventfd(&io_uring_batch->ring,
                                    io_uring_batch->eventfd_);
@@ -306,15 +306,14 @@ Status IOUringTransport::submitTransferTasks(
             task.buffer.reset(aligned_buffer);
 
             if (request.opcode == Request::READ)
-                io_uring_prep_read(sqe, context->getHandle(),
-                                   task.buffer.get(),
+                io_uring_prep_read(sqe, context->getHandle(), task.buffer.get(),
                                    request.length, request.target_offset);
             else if (request.opcode == Request::WRITE) {
                 Platform::getLoader().copy(task.buffer.get(), request.source,
                                            request.length);
                 io_uring_prep_write(sqe, context->getHandle(),
-                                    task.buffer.get(),
-                                    request.length, request.target_offset);
+                                    task.buffer.get(), request.length,
+                                    request.target_offset);
             }
         } else {
             if (request.opcode == Request::READ)
@@ -343,7 +342,7 @@ Status IOUringTransport::submitTransferTasks(
 }
 
 bool IOUringTransport::processCompletionStatic(IOUringSubBatch* batch,
-                                                struct io_uring_cqe* cqe) {
+                                               struct io_uring_cqe* cqe) {
     if (!batch || !cqe) return false;
     auto* task = reinterpret_cast<IOUringTask*>(cqe->user_data);
     if (!task) return false;
@@ -365,8 +364,8 @@ bool IOUringTransport::processCompletionStatic(IOUringSubBatch* batch,
     }
 
     auto expected = TransferStatusEnum::PENDING;
-    if (task->status_word.compare_exchange_strong(
-            expected, final_status, std::memory_order_acq_rel)) {
+    if (task->status_word.compare_exchange_strong(expected, final_status,
+                                                  std::memory_order_acq_rel)) {
         batch->pending_cqes.fetch_sub(1, std::memory_order_acq_rel);
         return true;
     }
@@ -379,9 +378,9 @@ Status IOUringTransport::getTransferStatus(SubBatchRef batch, int task_id,
     if (task_id < 0 || task_id >= (int)io_uring_batch->task_list.size())
         return Status::InvalidArgument("Invalid task ID");
     auto& task = io_uring_batch->task_list[task_id];
-    status = TransferStatus{
-        task.status_word.load(std::memory_order_acquire),
-        task.transferred_bytes.load(std::memory_order_acquire)};
+    status =
+        TransferStatus{task.status_word.load(std::memory_order_acquire),
+                       task.transferred_bytes.load(std::memory_order_acquire)};
     // Fallback peek path: only when the user hasn't installed a sink. With a
     // sink, the reactor + worker pool drives completion and we must not race
     // against them on the same ring.
@@ -399,7 +398,8 @@ Status IOUringTransport::getTransferStatus(SubBatchRef batch, int task_id,
                 return Status::InternalError(
                     std::string("io_uring_peek_cqe failed: ") + strerror(-err));
             }
-            if (processCompletionStatic(io_uring_batch, cqe)) any_terminal = true;
+            if (processCompletionStatic(io_uring_batch, cqe))
+                any_terminal = true;
             io_uring_cqe_seen(&io_uring_batch->ring, cqe);
         }
         (void)any_terminal;  // no sink to notify

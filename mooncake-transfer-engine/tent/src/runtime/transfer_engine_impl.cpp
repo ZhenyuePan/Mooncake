@@ -893,8 +893,7 @@ void TransferEngineImpl::attachBatchEventSink(Batch* batch,
         return;
     }
     if (!batch->sinks[type]) {
-        batch->sinks[type] = std::make_shared<EngineBatchSink>(
-            this, batch->id);
+        batch->sinks[type] = std::make_shared<EngineBatchSink>(this, batch->id);
     }
     auto& sub_batch = batch->sub_batch[type];
     sub_batch->batch_id = batch->id;
@@ -1304,8 +1303,7 @@ SelectionResult TransferEngineImpl::resolveTransport(const Request& req,
 Status TransferEngineImpl::submitTransfer(
     BatchID batch_id, const std::vector<Request>& request_list) {
     auto held = acquireBatch(batch_id, BatchLookupMode::ACTIVE_ONLY);
-    if (!held)
-        return Status::InvalidArgument("Batch is not alive" LOC_MARK);
+    if (!held) return Status::InvalidArgument("Batch is not alive" LOC_MARK);
     return submitTransferLocked(held.batch.get(), request_list);
 }
 
@@ -1455,8 +1453,7 @@ Status TransferEngineImpl::submitTransfer(
     BatchID batch_id, const std::vector<Request>& request_list,
     const Notification& notifi) {
     auto held = acquireBatch(batch_id, BatchLookupMode::ACTIVE_ONLY);
-    if (!held)
-        return Status::InvalidArgument("Batch is not alive" LOC_MARK);
+    if (!held) return Status::InvalidArgument("Batch is not alive" LOC_MARK);
     const size_t start_task_id = held.batch->task_list.size();
     CHECK_STATUS(submitTransferLocked(held.batch.get(), request_list));
     const size_t end_task_id = start_task_id + request_list.size();
@@ -1613,8 +1610,7 @@ Status TransferEngineImpl::receiveNotification(
 Status TransferEngineImpl::getTransferStatus(BatchID batch_id, size_t task_id,
                                              TransferStatus& task_status) {
     auto held = acquireBatch(batch_id, BatchLookupMode::ACTIVE_ONLY);
-    if (!held)
-        return Status::InvalidArgument("Batch is not alive" LOC_MARK);
+    if (!held) return Status::InvalidArgument("Batch is not alive" LOC_MARK);
     return getTransferStatusLocked(held.batch.get(), task_id, task_status);
 }
 
@@ -1639,8 +1635,7 @@ Status TransferEngineImpl::getTransferStatusLocked(
 Status TransferEngineImpl::getTransferStatus(
     BatchID batch_id, std::vector<TransferStatus>& status_list) {
     auto held = acquireBatch(batch_id, BatchLookupMode::ACTIVE_ONLY);
-    if (!held)
-        return Status::InvalidArgument("Batch is not alive" LOC_MARK);
+    if (!held) return Status::InvalidArgument("Batch is not alive" LOC_MARK);
     status_list.clear();
     for (size_t task_id = 0; task_id < held.batch->task_list.size();
          ++task_id) {
@@ -1656,8 +1651,7 @@ Status TransferEngineImpl::getBatchStatus(BatchID batch_id,
                                           TransferStatus& overall_status,
                                           bool allow_failover) {
     auto held = acquireBatch(batch_id, BatchLookupMode::ACTIVE_ONLY);
-    if (!held)
-        return Status::InvalidArgument("Batch is not alive" LOC_MARK);
+    if (!held) return Status::InvalidArgument("Batch is not alive" LOC_MARK);
     return getBatchStatusLocked(held.batch.get(), overall_status,
                                 allow_failover);
 }
@@ -1688,7 +1682,8 @@ Status TransferEngineImpl::getBatchStatusLocked(Batch* batch,
             // still be failed over by a failover-capable progress pass.
             if (task.status == FAILED && task.failover_pending)
                 resolveFailedTask(batch, task_id, allow_failover);
-            if (task.status == PENDING) continue;  // resolveFailedTask revived it
+            if (task.status == PENDING)
+                continue;  // resolveFailedTask revived it
             if (task.status == COMPLETED) {
                 success_tasks++;
                 overall_status.transferred_bytes += task.request.length;

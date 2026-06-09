@@ -39,9 +39,13 @@ class CountingSink final : public BatchEventSink {
         cv_.notify_all();
     }
 
-    void close() noexcept override { closed_.store(true, std::memory_order_release); }
+    void close() noexcept override {
+        closed_.store(true, std::memory_order_release);
+    }
 
-    int notifyCount() const { return notify_count_.load(std::memory_order_acquire); }
+    int notifyCount() const {
+        return notify_count_.load(std::memory_order_acquire);
+    }
 
     bool waitForNotify(std::chrono::milliseconds timeout) {
         std::unique_lock<std::mutex> lock(mu_);
@@ -91,13 +95,14 @@ class IOUringTransportTest : public ::testing::Test {
                                                      std::to_string(i))
                             .ok());
         }
-        ASSERT_TRUE(metadata_->segmentManager()
-                        .openRemote(target_segment_id_,
-                                    kLocalFileSegmentPrefix + temp_path_.string())
-                        .ok());
+        ASSERT_TRUE(
+            metadata_->segmentManager()
+                .openRemote(target_segment_id_,
+                            kLocalFileSegmentPrefix + temp_path_.string())
+                .ok());
 
-        auto status =
-            transport_.install(local_segment_name_, metadata_, topology_, conf_);
+        auto status = transport_.install(local_segment_name_, metadata_,
+                                         topology_, conf_);
         if (!status.ok()) {
             GTEST_SKIP() << "io_uring unavailable: " << status.ToString();
         }
@@ -188,8 +193,8 @@ TEST_F(IOUringTransportTest, EventDrivenSubmitNotifiesAndDrainCompletes) {
     active_batch_->sink = sink;
 
     auto storage = makePattern(kTransferSize + 1, 0x41);
-    auto expected =
-        std::vector<uint8_t>(storage.begin() + 1, storage.begin() + 1 + kTransferSize);
+    auto expected = std::vector<uint8_t>(storage.begin() + 1,
+                                         storage.begin() + 1 + kTransferSize);
 
     Request request{};
     request.opcode = Request::WRITE;
@@ -218,8 +223,8 @@ TEST_F(IOUringTransportTest, GetTransferStatusFallsBackWithoutSink) {
     AllocateBatch();
 
     auto storage = makePattern(kTransferSize + 1, 0x11);
-    auto expected =
-        std::vector<uint8_t>(storage.begin() + 1, storage.begin() + 1 + kTransferSize);
+    auto expected = std::vector<uint8_t>(storage.begin() + 1,
+                                         storage.begin() + 1 + kTransferSize);
 
     Request request{};
     request.opcode = Request::WRITE;
@@ -409,8 +414,8 @@ TEST_F(IOUringTransportTest, ConcurrentSubmitAndCompletionDoesNotRace) {
         for (size_t i = 0; i < kCapacity; ++i) {
             TransferStatus s{};
             ASSERT_TRUE(
-                transport_.getTransferStatus(active_batch_,
-                                             static_cast<int>(i), s)
+                transport_
+                    .getTransferStatus(active_batch_, static_cast<int>(i), s)
                     .ok());
             if (s.s == TransferStatusEnum::COMPLETED) ++done;
         }
@@ -436,8 +441,8 @@ TEST_F(IOUringTransportTest, ReactorDispatchesAcrossManyBatches) {
         ASSERT_TRUE(transport_.allocateSubBatch(batches[i], 1).ok());
         sinks[i] = std::make_shared<CountingSink>();
         batches[i]->sink = sinks[i];
-        storages[i] = makePattern(kTransferSize + 1,
-                                  static_cast<uint8_t>(0xA0 + i));
+        storages[i] =
+            makePattern(kTransferSize + 1, static_cast<uint8_t>(0xA0 + i));
         Request r{};
         r.opcode = Request::WRITE;
         r.source = storages[i].data() + 1;  // unaligned -> bounce buffer
@@ -451,12 +456,11 @@ TEST_F(IOUringTransportTest, ReactorDispatchesAcrossManyBatches) {
         ASSERT_TRUE(sinks[i]->waitForNotify(std::chrono::milliseconds(5000)))
             << "batch " << i << " never notified";
         TransferStatus s{};
-        const auto deadline = std::chrono::steady_clock::now() +
-                              std::chrono::milliseconds(2000);
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
         bool done = false;
         while (std::chrono::steady_clock::now() < deadline) {
-            ASSERT_TRUE(
-                transport_.getTransferStatus(batches[i], 0, s).ok());
+            ASSERT_TRUE(transport_.getTransferStatus(batches[i], 0, s).ok());
             if (s.s == TransferStatusEnum::COMPLETED) {
                 done = true;
                 break;
